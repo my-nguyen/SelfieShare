@@ -33,7 +33,7 @@ class ViewController: UIViewController, UICollectionViewDataSource, UICollection
 
         /// initialize MCSession
         
-        / create an MCPeerID based on the name of the current device
+        // create an MCPeerID based on the name of the current device
         peerID = MCPeerID(displayName: UIDevice.currentDevice().name)
         // create an MCSession based on the ID
         mcSession = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .Required)
@@ -86,11 +86,79 @@ class ViewController: UIViewController, UICollectionViewDataSource, UICollection
 
         images.insert(newImage, atIndex: 0)
         collectionView.reloadData()
+
+        /// send the image to peers
+        // check if there's any peers to send data to
+        if mcSession.connectedPeers.count > 0 {
+            // convert from UIImage to NSData
+            if let imageData = UIImagePNGRepresentation(newImage) {
+                // send the NSData object to all peers in "Reliable" mode
+                do {
+                    try mcSession.sendData(imageData, toPeers: mcSession.connectedPeers, withMode: .Reliable)
+                } catch let error as NSError {
+                    // if there's any problem, show an error message
+                    let ac = UIAlertController(title: "Send error", message: error.localizedDescription, preferredStyle: .Alert)
+                    ac.addAction(UIAlertAction(title: "OK", style: .Default, handler: nil))
+                    presentViewController(ac, animated: true, completion: nil)
+                }
+            }
+        }
     }
 
     // see project NamesToFaces for a detailed description of this method
     func imagePickerControllerDidCancel(picker: UIImagePickerController) {
         dismissViewControllerAnimated(true, completion: nil)
+    }
+
+    /// the following 7 methods are required for MCSessionDelegate and MCBrowserViewControllerDelegate
+    // this method is required but can be empty
+    func session(session: MCSession, didReceiveStream stream: NSInputStream, withName streamName: String, fromPeer peerID: MCPeerID) {
+    }
+
+    // this method is required but can be empty
+    func session(session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, withProgress progress: NSProgress) {
+    }
+
+    // this method is required but can be empty
+    func session(session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, atURL localURL: NSURL, withError error: NSError?) {
+    }
+
+    // this method is required but trivial
+    func browserViewControllerDidFinish(browserViewController: MCBrowserViewController) {
+        dismissViewControllerAnimated(true, completion: nil)
+    }
+
+    // this method is required but trivial
+    func browserViewControllerWasCancelled(browserViewController: MCBrowserViewController) {
+        dismissViewControllerAnimated(true, completion: nil)
+    }
+
+    // this method is required but only used for debugging/diagnostic purpose
+    func session(session: MCSession, peer peerID: MCPeerID, didChangeState state: MCSessionState) {
+        switch state {
+        case MCSessionState.Connected:
+            print("Connected: \(peerID.displayName)")
+
+        case MCSessionState.Connecting:
+            print("Connecting: \(peerID.displayName)")
+
+        case MCSessionState.NotConnected:
+            print("Not Connected: \(peerID.displayName)")
+        }
+    }
+
+    // this method is required and is truly useful to this app
+    // it is invoked to receive data sent from a peer app
+    func session(session: MCSession, didReceiveData data: NSData, fromPeer peerID: MCPeerID) {
+        // create a UIImage from the data received
+        if let image = UIImage(data: data) {
+            // switch to the main thread
+            dispatch_async(dispatch_get_main_queue()) { [unowned self] in
+                // add the image to the images array
+                self.images.insert(image, atIndex: 0)
+                self.collectionView.reloadData()
+            }
+        }
     }
 
     // prompt the user for a connection
