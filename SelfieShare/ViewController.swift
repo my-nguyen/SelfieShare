@@ -7,11 +7,19 @@
 //
 
 import UIKit
+import MultipeerConnectivity
 
-class ViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+class ViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UINavigationControllerDelegate, UIImagePickerControllerDelegate, MCSessionDelegate, MCBrowserViewControllerDelegate {
 
     @IBOutlet var collectionView: UICollectionView!
     var images = [UIImage]()
+    // identify each user uniquely in a session
+    var peerID: MCPeerID!
+    // handle all multi-peer connectivity
+    var mcSession: MCSession!
+    // upon a new session, advertise to other apps and handle invitations
+    var mcAdvertiserAssistant: MCAdvertiserAssistant!
+    let serviceType = "My-Selfie-Share"
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -20,6 +28,16 @@ class ViewController: UIViewController, UICollectionViewDataSource, UICollection
         title = "Selfie Share"
         // add a right bar button with the system's camera icon
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .Camera, target: self, action: #selector(importPicture))
+        // add a left bar Add button
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .Add, target: self, action: #selector(showConnectionPrompt))
+
+        /// initialize MCSession
+        
+        / create an MCPeerID based on the name of the current device
+        peerID = MCPeerID(displayName: UIDevice.currentDevice().name)
+        // create an MCSession based on the ID
+        mcSession = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .Required)
+        mcSession.delegate = self
     }
 
     override func didReceiveMemoryWarning() {
@@ -73,6 +91,26 @@ class ViewController: UIViewController, UICollectionViewDataSource, UICollection
     // see project NamesToFaces for a detailed description of this method
     func imagePickerControllerDidCancel(picker: UIImagePickerController) {
         dismissViewControllerAnimated(true, completion: nil)
+    }
+
+    // prompt the user for a connection
+    func showConnectionPrompt() {
+        let ac = UIAlertController(title: "Connect to others", message: nil, preferredStyle: .ActionSheet)
+        ac.addAction(UIAlertAction(title: "Host a session", style: .Default, handler: startHosting))
+        ac.addAction(UIAlertAction(title: "Join a session", style: .Default, handler: joinSession))
+        ac.addAction(UIAlertAction(title: "Cancel", style: .Cancel, handler: nil))
+        presentViewController(ac, animated: true, completion: nil)
+    }
+
+    func startHosting(action: UIAlertAction!) {
+        mcAdvertiserAssistant = MCAdvertiserAssistant(serviceType: "hws-project25", discoveryInfo: nil, session: mcSession)
+        mcAdvertiserAssistant.start()
+    }
+    
+    func joinSession(action: UIAlertAction!) {
+        let mcBrowser = MCBrowserViewController(serviceType: "hws-project25", session: mcSession)
+        mcBrowser.delegate = self
+        presentViewController(mcBrowser, animated: true, completion: nil)
     }
 }
 
